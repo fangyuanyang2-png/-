@@ -1,0 +1,17 @@
+{
+  "name": "resume-submission",
+  "version": "1.0.0",
+  "description": "简历投递系统 - 求职者投递简历,招聘方在线查看与管理",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1127.0",
+    "express": "^5.2.1",
+    "multer": "^2.0.0",
+    "pg": "^8.23.0"
+  }
+}

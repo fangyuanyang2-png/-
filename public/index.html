@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>投递简历</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container">
+  <h1>投递简历</h1>
+  <p class="subtitle">请填写以下信息并上传您的简历(支持 PDF / DOC / DOCX,最大 5MB)</p>
+
+  <form id="resume-form">
+    <label>
+      姓名 <span class="required">*</span>
+      <input type="text" name="name" required maxlength="100">
+    </label>
+
+    <label>
+      邮箱 <span class="required">*</span>
+      <input type="email" name="email" required maxlength="200">
+    </label>
+
+    <label>
+      手机号
+      <input type="tel" name="phone" maxlength="30">
+    </label>
+
+    <label>
+      应聘职位
+      <input type="text" name="position" maxlength="100">
+    </label>
+
+    <label>
+      自我介绍 / 留言
+      <textarea name="message" rows="5" maxlength="2000"></textarea>
+    </label>
+
+    <label>
+      简历文件 <span class="required">*</span>
+      <input type="file" name="resume" accept=".pdf,.doc,.docx" required>
+    </label>
+
+    <button type="submit">提交</button>
+  </form>
+
+  <div id="result" class="result" hidden></div>
+</div>
+
+<script src="/js/main.js"></script>
+</body>
+</html>
