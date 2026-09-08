@@ -1,14 +1,13 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const crypto = require('crypto');
 const db = require('../db');
+const storage = require('../storage');
 const { requireAdmin } = require('../adminAuth');
 
 const router = express.Router();
 
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.doc', '.docx']);
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -17,16 +16,8 @@ const ALLOWED_MIME_TYPES = new Set([
 ]);
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${crypto.randomUUID()}${ext}`);
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -41,7 +32,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // 求职者提交简历(公开接口)
 router.post('/', (req, res) => {
-  upload.single('resume')(req, res, (err) => {
+  upload.single('resume')(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.message || '上传失败' });
     }
@@ -58,6 +49,15 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: '请上传简历文件(PDF/DOC/DOCX)' });
     }
 
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const resumeFilename = `${crypto.randomUUID()}${ext}`;
+
+    try {
+      await storage.saveFile(req.file.buffer, resumeFilename, req.file.mimetype);
+    } catch (storageErr) {
+      return res.status(500).json({ error: '简历文件保存失败' });
+    }
+
     const submission = {
       id: crypto.randomUUID(),
       name: name.trim(),
@@ -65,20 +65,20 @@ router.post('/', (req, res) => {
       phone: phone ? phone.trim() : '',
       position: position ? position.trim() : '',
       message: message ? message.trim() : '',
-      resumeFilename: req.file.filename,
+      resumeFilename,
       resumeOriginalName: req.file.originalname,
       status: 'new',
       createdAt: new Date().toISOString(),
     };
 
-    db.insert(submission);
+    await db.insert(submission);
     res.status(201).json({ ok: true, id: submission.id });
   });
 });
 
 // 以下接口仅供招聘方(管理员)使用
-router.get('/', requireAdmin, (req, res) => {
-  const submissions = db.getAll().map((s) => ({
+router.get('/', requireAdmin, async (req, res) => {
+  const submissions = (await db.getAll()).map((s) => ({
     id: s.id,
     name: s.name,
     email: s.email,
@@ -92,25 +92,25 @@ router.get('/', requireAdmin, (req, res) => {
   res.json(submissions);
 });
 
-router.get('/:id/resume', requireAdmin, (req, res) => {
-  const submission = db.getById(req.params.id);
+router.get('/:id/resume', requireAdmin, async (req, res) => {
+  const submission = await db.getById(req.params.id);
   if (!submission) return res.status(404).json({ error: '记录不存在' });
 
-  const filePath = path.join(UPLOAD_DIR, submission.resumeFilename);
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: '简历文件不存在' });
+  try {
+    await storage.pipeFileToResponse(res, submission.resumeFilename, submission.resumeOriginalName);
+  } catch (storageErr) {
+    res.status(404).json({ error: '简历文件不存在' });
   }
-  res.download(filePath, submission.resumeOriginalName);
 });
 
 const VALID_STATUSES = new Set(['new', 'reviewed', 'accepted', 'rejected']);
 
-router.patch('/:id', requireAdmin, express.json(), (req, res) => {
+router.patch('/:id', requireAdmin, express.json(), async (req, res) => {
   const { status } = req.body;
   if (!VALID_STATUSES.has(status)) {
     return res.status(400).json({ error: '无效的状态值' });
   }
-  const updated = db.updateStatus(req.params.id, status);
+  const updated = await db.updateStatus(req.params.id, status);
   if (!updated) return res.status(404).json({ error: '记录不存在' });
   res.json({ ok: true });
 });
